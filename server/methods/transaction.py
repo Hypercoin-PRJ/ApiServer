@@ -18,29 +18,43 @@ class Transaction():
     def info(cls, thash: str):
         data = utils.make_request("getrawtransaction", [thash, True])
 
+        # Handle transaction-not-found error (-5) gracefully
+        if data.get("error") and data["error"].get("code") == -5:
+            return {
+                "error": {"code": -5, "message": "Transaction not found"},
+                "result": None
+            }
+
         if data["error"] is None:
+            # If confirmed, attach block height
             if "blockhash" in data["result"]:
                 block = utils.make_request("getblock", [data["result"]["blockhash"]])["result"]
                 data["result"]["height"] = block["height"]
             else:
+                # In mempool
                 data["result"]["height"] = -1
 
+            # Attach vin details (scriptPubKey + value)
             if data["result"]["height"] != 0:
                 for index, vin in enumerate(data["result"]["vin"]):
                     if "txid" in vin:
                         vin_data = utils.make_request("getrawtransaction", [vin["txid"], True])
                         if vin_data["error"] is None:
-                            data["result"]["vin"][index]["scriptPubKey"] = vin_data["result"]["vout"][vin["vout"]]["scriptPubKey"]
-                            data["result"]["vin"][index]["value"] = utils.satoshis(vin_data["result"]["vout"][vin["vout"]]["value"])
+                            prev_vout = vin_data["result"]["vout"][vin["vout"]]
+                            data["result"]["vin"][index]["scriptPubKey"] = prev_vout["scriptPubKey"]
+                            data["result"]["vin"][index]["value"] = utils.satoshis(prev_vout["value"])
 
+            # Normalize vout values + compute total
             amount = 0
             for index, vout in enumerate(data["result"]["vout"]):
-                data["result"]["vout"][index]["value"] = utils.satoshis(vout["value"])
-                amount += vout["value"]
+                sat_value = utils.satoshis(vout["value"])
+                data["result"]["vout"][index]["value"] = sat_value
+                amount += sat_value
 
             data["result"]["amount"] = amount
 
         return data
+
 
     @classmethod
     @cache.memoize(timeout=config.cache)
