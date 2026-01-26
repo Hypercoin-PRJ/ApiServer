@@ -2,142 +2,115 @@ from server import utils
 
 
 class Address:
-
-    @classmethod
-    def _has_addressindex(cls):
-        """
-        Detect if the node supports addressindex RPCs.
-        """
-        test = utils.make_request("getaddressbalance", ["dummyaddress123"])
-        return test["error"] is None or test["error"].get("code") != -32601
-
     @classmethod
     def _import_address(cls, address: str, rescan: bool = False):
         """
-        Import an address as watch-only for wallet-based fallback.
-        rescan=False is fast (only future TXs), rescan=True scans full chain.
+        Import an address into the wallet so that listunspent works.
+        - rescan = False (fast, only sees future txs)
+        - rescan = True (slow, scans full chain history)
         """
         try:
             utils.make_request("importaddress", [address, "", rescan])
         except Exception:
-            pass  # already imported is fine
+            # If already imported, Core throws an error, safe to ignore
+            pass
 
     @classmethod
     def balance(cls, address: str):
-        if cls._has_addressindex():
-            # Fast, works for any address
-            data = utils.make_request("getaddressbalance", [address])
-            if data["error"] is None:
-                data["result"] = {"balance": int(data["result"]["balance"])}
-            return data
-        else:
-            # Wallet fallback
-            cls._import_address(address, rescan=False)
-            data = utils.make_request("listunspent", [0, 9999999, [address]])
-            if data["error"] is None:
-                total = sum([utxo["amount"] for utxo in data["result"]])
-                data["result"] = {"balance": int(total * 100_000_000)}
-            return data
+        # Import without rescan (fast)
+        cls._import_address(address, rescan=False)
+
+        # Query unspent outputs
+        data = utils.make_request(
+            "listunspent", [0, 9999999, [address]]
+        )
+
+        if data["error"] is None:
+            balance = sum([utxo["amount"] for utxo in data["result"]])
+            satoshi_amount = int(balance * 100000000)
+            data["result"] = {"balance": f"{satoshi_amount:02d}"}
+
+        return data
 
     @classmethod
-    def unspent(cls, address: str, amount: int = 0):
-        if cls._has_addressindex():
-            data = utils.make_request("getaddressutxos", [address, utils.amount(amount)])
-            if data["error"] is None:
-                utxos = []
-                for u in data["result"]:
-                    utxos.append({
-                        "txid": u["txid"],
-                        "index": u["outputIndex"],
-                        "script": u["script"],
-                        "value": u["satoshis"],
-                        "height": u["height"]
-                    })
-                data["result"] = utxos
-            return data
+    def mempool(cls, address: str, raw=False):
+        data = utils.make_request("getrawmempool", [True])
+
+        if data["error"] is None:
+            transactions = []
+            for txid, txdata in data["result"].items():
+                # Look inside vout addresses
+                for vout in txdata.get("vout", []):
+                    if "addresses" in vout.get("scriptPubKey", {}):
+                        if address in vout["scriptPubKey"]["addresses"]:
+                            transactions.append(txid)
+                            break
+
+            total = len(transactions)
+            data["result"] = {"tx": transactions, "txcount": total}
         else:
-            cls._import_address(address, rescan=False)
-            data = utils.make_request("listunspent", [0, 9999999, [address]])
-            if data["error"] is None:
-                utxos = []
-                total = 0
-                for u in data["result"]:
-                    if amount > 0 and u["amount"] < amount:
-                        continue
-                    utxos.append({
-                        "txid": u["txid"],
-                        "index": u["vout"],
-                        "script": u["scriptPubKey"],
-                        "value": int(u["amount"] * 100_000_000),
-                        "height": u.get("height", 0)
-                    })
-                    total += u["amount"]
-                    if total > amount:
-                        break
-                data["result"] = utxos
-            return data
+            data["result"] = {"tx": [], "txcount": 0}
+
+        return data
+
 
     @classmethod
-    def mempool(cls, address: str, raw: bool = False):
-        if cls._has_addressindex():
-            data = utils.make_request("getaddressmempool", [address])
-            if data["error"] is None:
-                txs = [tx["txid"] for tx in data["result"]]
-                if not raw:
-                    txs_detail = []
-                    for tx in data["result"]:
-                        d = tx.copy()
-                        d.pop("address", None)
-                        txs_detail.append(d)
-                    txs = txs_detail
-                data["result"] = {"tx": txs, "txcount": len(txs)}
-            return data
-        else:
-            # Wallet fallback
-            cls._import_address(address, rescan=False)
-            mempool = utils.make_request("getrawmempool", [True])
-            if mempool["error"] is None:
-                txs = []
-                for txid, txdata in mempool["result"].items():
-                    for vout in txdata.get("vout", []):
-                        if "addresses" in vout.get("scriptPubKey", {}):
-                            if address in vout["scriptPubKey"]["addresses"]:
-                                txs.append(txid if raw else txdata)
-                                break
-                mempool["result"] = {"tx": txs, "txcount": len(txs)}
-            return mempool
+    def unspent(cls, address: str, amount: int):
+        cls._import_address(address, rescan=False)
+
+        data = utils.make_request(
+            "listunspent", [0, 9999999, [address]]
+        )
+
+        if data["error"] is None:
+            total = 0
+            utxos = []
+
+            for utxo in data["result"]:
+                utxos.append(
+                    {
+                        "txid": utxo["txid"],
+                        "index": utxo["vout"],
+                        "script": utxo["scriptPubKey"],
+                        "value": int(utxo["amount"] * 100000000),  # satoshis
+                        "height": utxo.get("height", 0),
+                    }
+                )
+
+                total += utxo["amount"]
+
+                if total > amount:
+                    break
+
+            data["result"] = utxos
+
+        return data
 
     @classmethod
     def history(cls, address: str):
-        if cls._has_addressindex():
-            data = utils.make_request("getaddresstxids", [address])
-            if data["error"] is None:
-                txs = data["result"][::-1]  # newest first
-                data["result"] = {"tx": txs, "txcount": len(txs)}
-            return data
-        else:
-            # Wallet fallback
-            cls._import_address(address, rescan=False)
-            data = utils.make_request("listtransactions", ["*", 1000, 0, True])
-            if data["error"] is None:
-                txs = [tx["txid"] for tx in data["result"] if tx.get("address") == address]
-                data["result"] = {"tx": txs[::-1], "txcount": len(txs)}
-            return data
+        # Fallback to wallet transactions (only works if address is in wallet)
+        data = utils.make_request("listtransactions", ["*", 1000, 0, True])
+
+        if data["error"] is None:
+            # Filter only txs involving this address
+            transactions = []
+            for tx in data["result"]:
+                if "address" in tx and tx["address"] == address:
+                    transactions.append(tx["txid"])
+
+            transactions = transactions[::-1]
+            data["result"] = {"tx": transactions, "txcount": len(transactions)}
+
+        return data
+
 
     @classmethod
     def check(cls, addresses: list):
         addresses = list(set(addresses))
         result = []
-        if cls._has_addressindex():
-            for addr in addresses:
-                data = utils.make_request("getaddresstxids", [addr])
-                if data["error"] is None and len(data["result"]) > 0:
-                    result.append(addr)
-        else:
-            # Wallet fallback
-            for addr in addresses:
-                cls._import_address(addr, rescan=False)
-                data = utils.make_request("listunspent", [0, 9999999, [addr]])
-                if data["error"] is None and len(data["result"]) > 0:
-                    result.append(addr)
+        for address in addresses:
+            data = utils.make_request("getaddresstxids", [{"addresses": [address]}])
+            if data["error"] is None and len(data["result"]) > 0:
+                result.append(address)
+
         return utils.response(result)
