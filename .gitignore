@@ -6,4 +6,6 @@ venv/*
 # misc
 .DS_STORE
 config.py
-wsgi.py
+price.log
+api-key.log
+myenv

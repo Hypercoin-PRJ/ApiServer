@@ -3,27 +3,53 @@ from server import utils
 from server import cache
 import config
 
+
 class Block():
     @classmethod
     def height(cls, height: int):
         data = utils.make_request("getblockhash", [height])
 
-        if data["error"] is None:
-            bhash = data["result"]
-            data.pop("result")
-            data["result"] = utils.make_request("getblock", [bhash])["result"]
-            data["result"]["txcount"] = data["result"]["nTx"]
-            data["result"].pop("nTx")
+        if data["error"] is not None:
+            return data
 
-        return data
+        bhash = data["result"]
+        block = utils.make_request("getblock", [bhash])
+
+        if block["error"] is not None:
+            return block
+
+        result = block["result"]
+
+        # SAFE txcount
+        if "nTx" in result:
+            result["txcount"] = result.pop("nTx")
+        elif "tx" in result:
+            result["txcount"] = len(result["tx"])
+        else:
+            result["txcount"] = 0
+
+        return {
+            "result": result,
+            "error": None,
+            "id": data.get("id")
+        }
 
     @classmethod
     def hash(cls, bhash: str):
         data = utils.make_request("getblock", [bhash])
 
-        if data["error"] is None:
-            data["result"]["txcount"] = data["result"]["nTx"]
-            data["result"].pop("nTx")
+        if data["error"] is not None:
+            return data
+
+        result = data["result"]
+
+        # SAFE txcount
+        if "nTx" in result:
+            result["txcount"] = result.pop("nTx")
+        elif "tx" in result:
+            result["txcount"] = len(result["tx"])
+        else:
+            result["txcount"] = 0
 
         return data
 
@@ -34,30 +60,40 @@ class Block():
 
     @classmethod
     def range(cls, height: int, offset: int):
-        result = []
-        for block in range(height - (offset - 1), height + 1):
-            data = utils.make_request("getblockhash", [block])
-            nethash = utils.make_request("getnetworkhashps", [120, block])
+        blocks = []
 
-            if data["error"] is None and nethash["error"] is None:
-                bhash = data["result"]
-                data.pop("result")
+        for h in range(height - (offset - 1), height + 1):
+            bhash = utils.make_request("getblockhash", [h])
+            nethash = utils.make_request("getnetworkhashps", [120, h])
 
-                block = utils.make_request("getblock", [bhash])
-                if block["error"] is not None:
-                    continue
+            if bhash["error"] is not None or nethash["error"] is not None:
+                continue
 
-                data["result"] = block["result"]
-                data["result"]["nethash"] = int(nethash["result"])
-                data["result"]["txcount"] = data["result"]["nTx"]
-                data["result"].pop("nTx")
+            block = utils.make_request("getblock", [bhash["result"]])
+            if block["error"] is not None:
+                continue
 
-                result.append(data["result"])
+            result = block["result"]
 
-        return result[::-1]
+            # SAFE txcount
+            if "nTx" in result:
+                result["txcount"] = result.pop("nTx")
+            elif "tx" in result:
+                result["txcount"] = len(result["tx"])
+            else:
+                result["txcount"] = 0
+
+            result["nethash"] = int(nethash["result"])
+            blocks.append(result)
+
+        return blocks[::-1]
 
     @classmethod
     @cache.memoize(timeout=config.cache)
     def inputs(cls, bhash: str):
         data = cls.hash(bhash)
-        return Transaction.addresses(data["result"]["tx"])
+
+        if data["error"] is not None:
+            return []
+
+        return Transaction().addresses(data["result"].get("tx", []))
