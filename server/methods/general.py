@@ -3,46 +3,25 @@ from server import cache
 import requests
 import config
 
-
-class General:
-    @classmethod
-    @cache.memoize(timeout=config.cache)
-    def _calc_supply(cls, height):
-        snapshot = 443863973624633
-        mining_supply = 0
-
-        for height in range(0, height + 1):
-            mining_supply += utils.reward(height)
-
-        total_supply = snapshot + mining_supply
-
-        return {
-            "mining_amount": utils.amount(mining_supply),
-            "supply_amount": utils.amount(total_supply),
-            "mining": mining_supply,
-            "supply": total_supply,
-            "height": height,
-        }
-
+class General():
     @classmethod
     def info(cls):
         data = utils.make_request("getblockchaininfo")
-
+        data2 = utils.make_request("gettxoutsetinfo")
         if data["error"] is None:
-            data["result"]["supply"] = cls._calc_supply(
-                data["result"]["blocks"]
-            )["supply"]
-            data["result"]["reward"] = utils.reward(data["result"]["blocks"])
+            #data["result"]["supply"] = utils.supply(data["result"]["blocks"])["supply"]
+            #data["result"]["reward"] = utils.reward2(data["result"]["blocks"])
+            data["result"]["supply"] = utils.satoshis(int(data2["result"]["total_amount"]))
+            data["result"]["reward"] = utils.reward2(data["result"]["blocks"])
             data["result"].pop("verificationprogress")
             data["result"].pop("initialblockdownload")
             data["result"].pop("pruned")
             data["result"].pop("softforks")
+            data["result"].pop("bip9_softforks")
             data["result"].pop("warnings")
             data["result"].pop("size_on_disk")
 
-            nethash = utils.make_request(
-                "getnetworkhashps", [120, data["result"]["blocks"]]
-            )
+            nethash = utils.make_request("getnetworkhashps", [120, data["result"]["blocks"]])
             if nethash["error"] is None:
                 data["result"]["nethash"] = int(nethash["result"])
 
@@ -52,22 +31,34 @@ class General:
     @cache.memoize(timeout=config.cache)
     def supply(cls):
         data = utils.make_request("getblockchaininfo")
-        height = data["result"]["blocks"]
+        #print(data)
+        #height = data["result"]["blocks"]
+        result = utils.supplyrt()
 
-        return cls._calc_supply(height)
+        return result
+    
+    @classmethod
+    @cache.memoize(timeout=1)
+    def getprice(cls):
+        #result = utils.getprice()
+        #return result
+        return {"":""}
 
     @classmethod
     def fee(cls):
-        data = utils.make_request("estimatesmartfee", [6])
+        # ToDo: Fix me
 
-        if "errors" in data["result"]:
-            return utils.response(
-                {"feerate": utils.satoshis(0.0001), "blocks": 6}
-            )
+        # data = utils.make_request("estimatesmartfee", [6])
 
-        data["result"]["feerate"] = utils.satoshis(data["result"]["feerate"])
+        # if data["error"] is None:
+        #   data["result"]["feerate"] = utils.satoshis(data["result"]["feerate"])
 
-        return data
+        # return data
+
+        return utils.response({
+            "feerate": utils.satoshis(0.0001),
+            "blocks": 6
+        })
 
     @classmethod
     def mempool(cls):
@@ -82,7 +73,8 @@ class General:
 
         return data
 
-    @classmethod
-    def price(cls):
-        link = "https://api.coingecko.com/api/v3/simple/price?ids=microbitcoin&vs_currencies=usd,btc,krw"
-        return requests.get(link).json()
+    #@classmethod
+    #@cache.memoize(timeout=600)
+    #def price(cls):
+    #    link = "https://api.coingecko.com/api/v3/simple/price?ids=hypercoin&vs_currencies=usd,btc"
+    #    return requests.get(link).json()

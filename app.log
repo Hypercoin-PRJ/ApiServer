@@ -1,0 +1,58 @@
+/root/api-server/server/utils.py:21: MonkeyPatchWarning: Monkey-patching outside the main native thread. Some APIs will not be available. Expect a KeyError to be printed at shutdown.
+  monkey.patch_all()
+/root/api-server/server/utils.py:21: MonkeyPatchWarning: Monkey-patching not on the main thread; threading.main_thread().join() will hang from a greenlet
+  monkey.patch_all()
+/root/api-server/server/utils.py:21: MonkeyPatchWarning: Monkey-patching ssl after ssl has already been imported may lead to errors, including RecursionError on Python 3.6. It may also silently lead to incorrect behaviour on Python 3.7. Please monkey-patch earlier. See https://github.com/gevent/gevent/issues/1016. Modules that had direct imports (NOT patched): ['eventlet.green.ssl (/root/api-server/myenv/lib/python3.8/site-packages/eventlet/green/ssl.py)']. 
+  monkey.patch_all()
+Traceback (most recent call last):
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 848, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/root/api-server/server/methods/transaction.py", line 1, in <module>
+    from server import utils
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 152, in __exit__
+  File "<frozen importlib._bootstrap>", line 107, in release
+RuntimeError: cannot release un-acquired lock
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 848, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/root/api-server/server/esplora.py", line 2, in <module>
+    from server.methods.transaction import Transaction
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 152, in __exit__
+  File "<frozen importlib._bootstrap>", line 107, in release
+RuntimeError: cannot release un-acquired lock
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 848, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/root/api-server/server/__init__.py", line 28, in <module>
+    from server import esplora
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 152, in __exit__
+  File "<frozen importlib._bootstrap>", line 107, in release
+RuntimeError: cannot release un-acquired lock
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "app.py", line 1, in <module>
+    from server import config
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 152, in __exit__
+  File "<frozen importlib._bootstrap>", line 107, in release
+RuntimeError: cannot release un-acquired lock
