@@ -114,14 +114,14 @@ def satoshis(value):
 def amount(value):
     return round(value / math.pow(10, 8), 8)
 
-def getprice():
+'''def getprice():
     return {
             "price_btc": "0.00000000",
             "price_usd": "0.00000000",
             "status": f"Error: {str(e)}"
-        }
+        }'''
     
-'''def getprice():
+def getprice():
     try:
         try:
             result = subprocess.run(
@@ -173,7 +173,7 @@ def getprice():
             "price_btc": "0.00000000",
             "price_usd": "0.00000000",
             "status": f"Error: {str(e)}"
-        }'''
+        }
 
 def getprice2():
     url = "https://api.coinpaprika.com/v1/tickers/hrc-hypercoin"
