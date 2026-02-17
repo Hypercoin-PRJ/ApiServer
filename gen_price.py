@@ -22,7 +22,7 @@ def gen_p():
     }
     payload = {
         "currency": "USD",
-        "code": "__BKC",
+        "code": "__HRC",
         "meta": True
     }
     response = requests.post(url, headers=headers, json=payload, timeout=10)
